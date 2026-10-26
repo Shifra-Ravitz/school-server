@@ -1,0 +1,260 @@
+// מבנה מסד הנתונים של מערכת ניהול בית הספר.
+// כל שינוי בקובץ הזה דורש יצירת Migration חדשה: npm run db:migrate
+
+generator client {
+  provider   = "prisma-client-js"
+  // מנוע JavaScript של Prisma: עובד דרך ספריית pg, בלי קבצים בינאריים נוספים
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// תפקיד המשתמשת במערכת
+enum Role {
+  PRINCIPAL // מנהלת
+  TEACHER   // מורה
+  STUDENT   // תלמידה
+}
+
+/// סטטוס חריגת נוכחות. תלמידה שאין לה רשומה בשיעור נחשבת נוכחת.
+enum AttendanceStatus {
+  LATE     // איחור  (+)
+  ABSENT   // חיסור  (-)
+  RELEASED // שחרור  (ש)
+}
+
+/// למי נשלחת הודעה
+enum MessageAudience {
+  ALL      // כל המורות והתלמידות
+  TEACHERS // כל המורות
+  STUDENTS // כל התלמידות
+  CLASS    // תלמידות של כיתה אחת
+}
+
+/// בית ספר. כל הנתונים במערכת שייכים לבית ספר אחד.
+model School {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  city      String?
+  createdAt DateTime @default(now())
+
+  users    User[]
+  classes  Class[]
+  subjects Subject[]
+  messages Message[]
+}
+
+/// משתמשת: מנהלת, מורה או תלמידה
+model User {
+  id           Int       @id @default(autoincrement())
+  schoolId     Int
+  role         Role
+  firstName    String
+  lastName     String
+  /// המייל לא ייחודי: אחיות יכולות להשתמש במייל של ההורים.
+  /// לאותו מייל אסור שתהיינה שתי סיסמאות זהות (נבדק בשרת).
+  email        String
+  passwordHash String
+  /// תעודת זהות (9 ספרות). ייחודית בתוך בית הספר. חובה לתלמידה חדשה.
+  idNumber     String?
+  phone        String?
+  address      String?
+  /// תאריך לידה לועזי. חובה לתלמידה.
+  birthDate    DateTime? @db.Date
+  /// הכיתה של תלמידה. ריק למנהלת ולמורה.
+  classId      Int?
+  /// במקום למחוק משתמשת - משביתים אותה
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  school             School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class              Class?               @relation(fields: [classId], references: [id], onDelete: Restrict)
+  teachingAssignments TeachingAssignment[]
+  grades             Grade[]
+  attendance         Attendance[]
+  sentMessages       Message[]            @relation("SentMessages")
+  receivedMessages   MessageRecipient[]
+
+  @@unique([schoolId, idNumber])
+  @@index([email])
+  @@index([schoolId, role])
+  @@index([classId])
+}
+
+/// כיתה, למשל ד'2 = שכבה 4, מקבילה 2
+model Class {
+  id         Int    @id @default(autoincrement())
+  schoolId   Int
+  gradeLevel Int // שכבה 1-12
+  parallel   Int // מספר הכיתה בשכבה 1-10
+  schoolYear String // למשל תשפ״ז
+
+  school      School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  students    User[]
+  assignments TeachingAssignment[]
+  messages    Message[]
+
+  @@unique([schoolId, gradeLevel, parallel, schoolYear])
+}
+
+/// מקצוע לימוד
+model Subject {
+  id       Int    @id @default(autoincrement())
+  schoolId Int
+  name     String
+
+  school      School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignments TeachingAssignment[]
+
+  @@unique([schoolId, name])
+}
+
+/// שיבוץ: מורה מלמדת מקצוע בכיתה
+model TeachingAssignment {
+  id        Int @id @default(autoincrement())
+  classId   Int
+  subjectId Int
+  teacherId Int
+
+  class    Class    @relation(fields: [classId], references: [id], onDelete: Restrict)
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher  User     @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+
+  periods            GradePeriod[]
+  lessons            Lesson[]
+  attendance         Attendance[]
+  attendanceSessions AttendanceSession[]
+
+  @@unique([classId, subjectId])
+  @@index([teacherId])
+}
+
+/// תקופת ציון (מחצית / סמסטר) בתוך שיבוץ
+model GradePeriod {
+  id           Int    @id @default(autoincrement())
+  assignmentId Int
+  name         String
+  weight       Int // 0-100. סכום התקופות בשיבוץ לא יעלה על 100
+  sortOrder    Int    @default(0)
+
+  assignment TeachingAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  exams      Exam[]
+
+  @@unique([assignmentId, name])
+}
+
+/// מבחן / בוחן / עבודה
+model Exam {
+  id          Int      @id @default(autoincrement())
+  periodId    Int
+  title       String
+  date        DateTime @db.Date
+  weight      Int // 1-100. סכום המבחנים בתקופה לא יעלה על 100
+  description String?
+  createdAt   DateTime @default(now())
+
+  period GradePeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  grades Grade[]
+
+  @@index([periodId])
+}
+
+/// ציון של תלמידה במבחן
+model Grade {
+  id         Int      @id @default(autoincrement())
+  examId     Int
+  studentId  Int
+  score      Decimal  @db.Decimal(5, 2) // 0-100, עד 2 ספרות אחרי הנקודה
+  evaluation String? // הערכה מילולית
+  updatedAt  DateTime @updatedAt
+
+  exam    Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, studentId])
+  @@index([studentId])
+}
+
+/// שיעור במערכת השעות השבועית
+model Lesson {
+  id           Int     @id @default(autoincrement())
+  assignmentId Int
+  dayOfWeek    Int // 1 = יום א' ... 6 = יום ו'
+  lessonNumber Int // 1-10
+  room         String?
+
+  assignment TeachingAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, dayOfWeek, lessonNumber])
+}
+
+/// שיעור שבו המורה בדקה נוכחות (גם אם כולן נכחו).
+/// משמש לחישוב אחוז הנוכחות.
+model AttendanceSession {
+  id           Int      @id @default(autoincrement())
+  assignmentId Int
+  date         DateTime @db.Date
+  lessonNumber Int
+  createdAt    DateTime @default(now())
+
+  assignment TeachingAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, date, lessonNumber])
+}
+
+/// חריגת נוכחות של תלמידה בשיעור (איחור / חיסור / שחרור)
+model Attendance {
+  id           Int              @id @default(autoincrement())
+  assignmentId Int
+  studentId    Int
+  date         DateTime         @db.Date
+  lessonNumber Int
+  status       AttendanceStatus
+  approved     Boolean          @default(false)
+  reason       String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment TeachingAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId, date, lessonNumber])
+  @@index([studentId, date])
+}
+
+/// הודעה שהמנהלת שולחת
+model Message {
+  id        Int             @id @default(autoincrement())
+  schoolId  Int
+  senderId  Int
+  title     String
+  body      String
+  audience  MessageAudience
+  classId   Int?
+  createdAt DateTime        @default(now())
+
+  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sender     User               @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  class      Class?             @relation(fields: [classId], references: [id], onDelete: SetNull)
+  recipients MessageRecipient[]
+
+  @@index([schoolId, createdAt])
+}
+
+/// עותק של הודעה אצל משתמשת אחת: האם נקראה והאם נמחקה אצלה
+model MessageRecipient {
+  messageId Int
+  userId    Int
+  readAt    DateTime?
+  deletedAt DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+}

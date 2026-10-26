@@ -1,0 +1,65 @@
+{
+  "name": "school-management-backend",
+  "version": "1.0.0",
+  "description": "שרת למערכת ניהול בית ספר: התחברות, הרשאות, כיתות, מבחנים, ציונים, נוכחות, מערכת שעות והודעות",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node dist/src/index.js",
+    "start:prod": "prisma migrate deploy && node dist/scripts/seed-if-empty.js && node dist/src/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "create-school": "tsx scripts/create-school.ts",
+    "openapi": "tsx scripts/generate-openapi.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@hebcal/core": "^5.10.1",
+    "@prisma/adapter-pg": "^6.19.3",
+    "@prisma/client": "^6.16.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "pg": "^8.23.1",
+    "prisma": "^6.16.0",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.1.5"
+  },
+  "overrides": {
+    "uuid": "^11.1.1",
+    "deepmerge-ts": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^6.0.3",
+    "@types/swagger-ui-express": "^4.1.8",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^5.0.5"
+  }
+}

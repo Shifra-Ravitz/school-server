@@ -1,0 +1,37 @@
+# הגדרות פריסה ל־Render (Blueprint).
+# Render קורא את הקובץ הזה ויוצר את שירות השרת עם ההגדרות שכאן.
+# מסד הנתונים נמצא אצל ספק נפרד (למשל Neon), ולכן אין כאן הגדרת database.
+
+services:
+  - type: web
+    name: school-backend
+    runtime: node
+    plan: free
+    region: frankfurt
+    # מתקינים גם כלי פיתוח (TypeScript, Prisma) כדי לבנות, ואז בונים
+    buildCommand: npm ci --include=dev && npm run build
+    # מריצים Migrations, ממלאים נתוני הדגמה אם המסד ריק, ומפעילים את השרת
+    startCommand: npm run start:prod
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # כתובת מסד הנתונים מ־Neon - ממלאים ידנית במסך של Render
+      - key: DATABASE_URL
+        sync: false
+      # Render יוצר מפתח סודי אקראי לבד
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      # הכתובת של אתר ה־React (אפשר כמה, מופרדות בפסיק). ממלאים ידנית.
+      - key: CORS_ORIGINS
+        sync: false
+      # סיסמה לחשבונות ההדגמה - ממלאים ידנית (לפחות 8 תווים)
+      - key: SEED_DEMO_PASSWORD
+        sync: false
+      - key: SEED_ON_START
+        value: "true"
