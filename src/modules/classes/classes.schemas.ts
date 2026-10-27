@@ -33,7 +33,7 @@ export const classStudentsQuery = z.object({
   firstName: searchText,
   lastName: searchText,
   search: searchText,
-  sortBy: z.enum(["firstName", "lastName"], { message: "sortBy לא תקין" }).default("lastName"),
+  sortBy: z.enum(["firstName", "lastName", "address"], { message: "sortBy לא תקין" }).default("lastName"),
   order: sortOrder,
 });
 

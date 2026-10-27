@@ -782,7 +782,7 @@ const paths: Json = {
         q("firstName", { type: "string" }, "שם פרטי"),
         q("lastName", { type: "string" }, "שם משפחה"),
         q("search", { type: "string" }, "חיפוש חופשי"),
-        q("sortBy", { type: "string", enum: ["firstName", "lastName"], default: "lastName" }, "מיון"),
+        q("sortBy", { type: "string", enum: ["firstName", "lastName", "address"], default: "lastName" }, "מיון"),
         q("order", ORDER, "כיוון"),
       ],
       ok: { description: "רשימה", schema: arrayOf(ref("User")) },

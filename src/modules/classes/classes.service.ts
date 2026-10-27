@@ -53,7 +53,11 @@ export async function listClassStudents(auth: AuthUser, classId: number, q: z.in
   const students = await prisma.user.findMany({
     where: { classId, role: "STUDENT", isActive: true, AND: nameSearchWhere(q.search, q.firstName, q.lastName) },
     orderBy:
-      q.sortBy === "firstName" ? [{ firstName: q.order }, { lastName: q.order }] : [{ lastName: q.order }, { firstName: q.order }],
+      q.sortBy === "firstName"
+        ? [{ firstName: q.order }, { lastName: q.order }]
+        : q.sortBy === "address"
+          ? [{ address: q.order }, { lastName: q.order }, { firstName: q.order }]
+          : [{ lastName: q.order }, { firstName: q.order }],
     select: publicUserSelect,
   });
   return students.map(publicUser);
